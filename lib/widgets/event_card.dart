@@ -32,19 +32,12 @@ class EventCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 日付カード
+                  // 日付カード（月ごとに色が変わる）
                   Container(
                     width: 56,
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF6366F1),
-                          Color(0xFF8B5CF6),
-                        ],
-                      ),
+                      color: _getMonthColor(event.date.month),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
@@ -53,15 +46,15 @@ class EventCard extends StatelessWidget {
                           _getMonth(event.date),
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.white.withOpacity( 0.9),
+                            color: _getMonthTextColor(event.date.month),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                         Text(
                           event.date.day.toString(),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 24,
-                            color: Colors.white,
+                            color: _getMonthTextColor(event.date.month),
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -189,7 +182,7 @@ class EventCard extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.error.withOpacity( 0.1),
+          color: AppColors.error.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Text(
@@ -226,6 +219,44 @@ class EventCard extends StatelessWidget {
 
   String _formatTime(DateTime date) {
     return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  // 月ごとのパステルカラー（背景色）
+  Color _getMonthColor(int month) {
+    const monthColors = [
+      Color(0xFFE3F2FD), // 1月: 薄い青（冬）
+      Color(0xFFFCE4EC), // 2月: 薄いピンク（バレンタイン）
+      Color(0xFFF3E5F5), // 3月: 薄い紫（ひな祭り）
+      Color(0xFFFFF0F5), // 4月: 桜ピンク
+      Color(0xFFE8F5E9), // 5月: 薄い緑（新緑）
+      Color(0xFFE0F7FA), // 6月: 薄い水色（梅雨）
+      Color(0xFFFFF3E0), // 7月: 薄いオレンジ（夏）
+      Color(0xFFFFFDE7), // 8月: 薄い黄色（向日葵）
+      Color(0xFFFBE9E7), // 9月: 薄いコーラル（秋の始まり）
+      Color(0xFFFFECB3), // 10月: 薄い山吹（紅葉）
+      Color(0xFFEFEBE9), // 11月: 薄いベージュ（晩秋）
+      Color(0xFFECEFF1), // 12月: 薄いグレー（冬）
+    ];
+    return monthColors[month - 1];
+  }
+
+  // 月ごとのテキストカラー
+  Color _getMonthTextColor(int month) {
+    const textColors = [
+      Color(0xFF1565C0), // 1月: 青
+      Color(0xFFC2185B), // 2月: ピンク
+      Color(0xFF7B1FA2), // 3月: 紫
+      Color(0xFFD81B60), // 4月: 桜色
+      Color(0xFF2E7D32), // 5月: 緑
+      Color(0xFF00838F), // 6月: シアン
+      Color(0xFFEF6C00), // 7月: オレンジ
+      Color(0xFFF9A825), // 8月: 黄色
+      Color(0xFFD84315), // 9月: コーラル
+      Color(0xFFFF8F00), // 10月: 山吹
+      Color(0xFF5D4037), // 11月: 茶色
+      Color(0xFF455A64), // 12月: グレー
+    ];
+    return textColors[month - 1];
   }
 }
 

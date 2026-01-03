@@ -37,13 +37,13 @@ class EventDetailScreen extends StatelessWidget {
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: const BoxDecoration(
+                  // ミントグリーンのグラデーション
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Color(0xFF6366F1),
-                      Color(0xFF8B5CF6),
-                      Color(0xFFA855F7),
+                      Color(0xFF4DB6AC), // Teal 300
+                      Color(0xFF80CBC4), // Teal 200
                     ],
                   ),
                 ),
@@ -171,13 +171,7 @@ class EventDetailScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.surface,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity( 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -4),
-            ),
-          ],
+          border: Border(top: BorderSide(color: AppColors.divider)),
         ),
         child: SafeArea(
           child: Row(

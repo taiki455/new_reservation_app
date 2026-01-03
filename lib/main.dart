@@ -7,6 +7,7 @@ import 'screens/my_page_screen.dart';
 import 'screens/admin/admin_event_list_screen.dart';
 import 'screens/admin/event_form_screen.dart';
 import 'screens/admin/participants_screen.dart';
+import 'screens/admin/csv_import_screen.dart';
 import 'theme/app_theme.dart';
 import 'data/mock_data.dart';
 
@@ -57,7 +58,7 @@ class _AppRootState extends State<AppRoot> {
   Widget build(BuildContext context) {
     if (!_isLoggedIn) {
       return LoginScreen(
-        onLoginSuccess: () => _login(),
+        onLoginSuccess: (isAdmin) => _login(asAdmin: isAdmin),
       );
     }
 
@@ -179,13 +180,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppColors.surface,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity( 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -4),
-            ),
-          ],
+          border: Border(top: BorderSide(color: AppColors.divider)),
         ),
         child: SafeArea(
           child: Padding(
@@ -263,7 +258,7 @@ class AdminHomeScreen extends StatefulWidget {
 }
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
-  String _currentScreen = 'list'; // 'list', 'form', 'participants'
+  String _currentScreen = 'list'; // 'list', 'form', 'participants', 'import'
   Event? _selectedEvent;
 
   @override
@@ -279,6 +274,15 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           event: _selectedEvent ?? mockEvents.first,
           onBack: () => setState(() => _currentScreen = 'list'),
         );
+      case 'import':
+        return CsvImportScreen(
+          onBack: () => setState(() => _currentScreen = 'list'),
+          onImport: (events) {
+            // TODO: 実際のインポート処理を実装
+            // 今はモックなのでログだけ
+            debugPrint('インポートされたイベント: ${events.length}件');
+          },
+        );
       default:
         return Scaffold(
           body: AdminEventListScreen(
@@ -293,24 +297,26 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           bottomNavigationBar: Container(
             decoration: BoxDecoration(
               color: AppColors.surface,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity( 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -4),
-                ),
-              ],
+              border: Border(top: BorderSide(color: AppColors.divider)),
             ),
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
+                    // CSVインポートボタン
+                    IconButton(
+                      onPressed: () => setState(() => _currentScreen = 'import'),
+                      icon: const Icon(Icons.file_upload_outlined),
+                      tooltip: 'CSVインポート',
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity( 0.1),
+                          color: AppColors.primary.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Row(
@@ -329,7 +335,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     IconButton(
                       onPressed: widget.onLogout,
                       icon: const Icon(Icons.logout, color: AppColors.textSecondary),

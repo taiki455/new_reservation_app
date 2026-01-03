@@ -1,33 +1,32 @@
 import 'package:flutter/material.dart';
 
 class AppColors {
-  // メインカラー
-  static const primary = Color(0xFF6366F1); // インディゴ
-  static const primaryLight = Color(0xFF818CF8);
-  static const primaryDark = Color(0xFF4F46E5);
+  // メインカラー（ミントグリーン）
+  static const primary = Color(0xFF4DB6AC); // Teal 300
+  static const primaryLight = Color(0xFF80CBC4); // Teal 200
+  static const primaryDark = Color(0xFF26A69A); // Teal 400
 
   // アクセントカラー
-  static const accent = Color(0xFF10B981); // エメラルドグリーン
-  static const accentLight = Color(0xFF34D399);
+  static const accent = Color(0xFF26A69A);
+  static const accentLight = Color(0xFF80CBC4);
 
-  // 背景色
-  static const background = Color(0xFFF8FAFC);
+  // 背景色（白基調でクリーン）
+  static const background = Color(0xFFF5F5F5); // 薄いグレー
   static const surface = Color(0xFFFFFFFF);
-  static const surfaceVariant = Color(0xFFF1F5F9);
+  static const surfaceVariant = Color(0xFFE0F2F1); // 薄いミント
 
   // テキストカラー
-  static const textPrimary = Color(0xFF1E293B);
-  static const textSecondary = Color(0xFF64748B);
-  static const textHint = Color(0xFF94A3B8);
+  static const textPrimary = Color(0xFF333333); // ダークグレー
+  static const textSecondary = Color(0xFF666666);
+  static const textHint = Color(0xFF999999);
 
   // ステータスカラー
-  static const success = Color(0xFF10B981);
-  static const warning = Color(0xFFF59E0B);
-  static const error = Color(0xFFEF4444);
+  static const success = Color(0xFF4DB6AC);
+  static const warning = Color(0xFFFF9800);
+  static const error = Color(0xFFE53935);
 
   // その他
-  static const divider = Color(0xFFE2E8F0);
-  static const shadow = Color(0x1A000000);
+  static const divider = Color(0xFFE0E0E0);
 }
 
 class AppTheme {

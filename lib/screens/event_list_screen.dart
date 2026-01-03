@@ -20,16 +20,17 @@ class EventListScreen extends StatelessWidget {
             expandedHeight: 140,
             floating: false,
             pinned: true,
-            backgroundColor: AppColors.surface,
+            backgroundColor: const Color(0xFF4DB6AC), // ミントグリーン
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: const BoxDecoration(
+                  // ミントグリーンのグラデーション
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Color(0xFF6366F1),
-                      Color(0xFF8B5CF6),
+                      Color(0xFF4DB6AC), // Teal 300
+                      Color(0xFF80CBC4), // Teal 200
                     ],
                   ),
                 ),
@@ -52,7 +53,7 @@ class EventListScreen extends StatelessWidget {
                           '参加したいイベントを見つけよう',
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.white.withOpacity( 0.8),
+                            color: Colors.white.withOpacity(0.9),
                           ),
                         ),
                       ],
@@ -70,13 +71,7 @@ class EventListScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: AppColors.surface,
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity( 0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                  border: Border.all(color: AppColors.divider),
                 ),
                 child: TextField(
                   decoration: InputDecoration(
