@@ -2,53 +2,84 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 
-class LoginScreen extends StatefulWidget {
-  final Function(bool isAdmin) onLoginSuccess;
-  final VoidCallback onGoToRegister;
+class RegisterScreen extends StatefulWidget {
+  final VoidCallback onRegisterSuccess;
+  final VoidCallback onBackToLogin;
 
-  const LoginScreen({
+  const RegisterScreen({
     super.key,
-    required this.onLoginSuccess,
-    required this.onGoToRegister,
+    required this.onRegisterSuccess,
+    required this.onBackToLogin,
   });
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _authService = AuthService();
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
   bool _isLoading = false;
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
+  Future<void> _handleRegister() async {
+    final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      _showError('メールアドレスとパスワードを入力してください');
+    // バリデーション
+    if (name.isEmpty) {
+      _showError('名前を入力してください');
+      return;
+    }
+    if (email.isEmpty) {
+      _showError('メールアドレスを入力してください');
+      return;
+    }
+    if (password.isEmpty) {
+      _showError('パスワードを入力してください');
+      return;
+    }
+    if (password.length < 6) {
+      _showError('パスワードは6文字以上で入力してください');
+      return;
+    }
+    if (password != confirmPassword) {
+      _showError('パスワードが一致しません');
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final appUser = await _authService.signIn(
+      await _authService.signUp(
         email: email,
         password: password,
+        name: name,
       );
 
       if (mounted) {
-        widget.onLoginSuccess(appUser.role == 'admin');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('アカウントを作成しました！'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        widget.onRegisterSuccess();
       }
     } catch (e) {
       if (mounted) {
@@ -68,30 +99,6 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: AppColors.error,
       ),
     );
-  }
-
-  Future<void> _handleForgotPassword() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      _showError('メールアドレスを入力してからリセットボタンを押してください');
-      return;
-    }
-
-    try {
-      await _authService.sendPasswordResetEmail(email);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('パスワードリセットメールを送信しました'),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        _showError(e.toString().replaceAll('Exception: ', ''));
-      }
-    }
   }
 
   @override
@@ -119,43 +126,40 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               child: Column(
                 children: [
-                  const SizedBox(height: 60),
-                  // ロゴ
+                  const SizedBox(height: 40),
+                  // ヘッダー
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Icon(
-                      Icons.event_available_rounded,
-                      size: 64,
+                      Icons.person_add_rounded,
+                      size: 48,
                       color: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                   const Text(
-                    'イベント予約',
+                    'アカウント作成',
                     style: TextStyle(
-                      fontSize: 32,
+                      fontSize: 28,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
-                      letterSpacing: 1.2,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'コミュニティイベントを\nもっと簡単に、もっと楽しく',
-                    textAlign: TextAlign.center,
+                    'イベント予約を始めよう',
                     style: TextStyle(
                       fontSize: 16,
                       color: Colors.white.withOpacity(0.9),
-                      height: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 32),
 
-                  // ログインフォーム
+                  // フォーム
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -165,15 +169,29 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'ログイン',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
+                        // 名前
+                        TextField(
+                          controller: _nameController,
+                          decoration: InputDecoration(
+                            labelText: '名前',
+                            hintText: '山田 太郎',
+                            prefixIcon: const Icon(Icons.person_outline),
+                            filled: true,
+                            fillColor: AppColors.surfaceVariant,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: AppColors.primary,
+                                width: 2,
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 16),
 
                         // メールアドレス
                         TextField(
@@ -206,7 +224,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           obscureText: !_isPasswordVisible,
                           decoration: InputDecoration(
                             labelText: 'パスワード',
-                            hintText: '••••••••',
+                            hintText: '6文字以上',
                             prefixIcon: const Icon(Icons.lock_outline),
                             suffixIcon: IconButton(
                               icon: Icon(
@@ -235,28 +253,50 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 16),
 
-                        // パスワードを忘れた
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: _handleForgotPassword,
-                            child: const Text(
-                              'パスワードを忘れた方',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: AppColors.textSecondary,
+                        // パスワード確認
+                        TextField(
+                          controller: _confirmPasswordController,
+                          obscureText: !_isConfirmPasswordVisible,
+                          decoration: InputDecoration(
+                            labelText: 'パスワード（確認）',
+                            hintText: '同じパスワードを入力',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _isConfirmPasswordVisible
+                                    ? Icons.visibility_off
+                                    : Icons.visibility,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _isConfirmPasswordVisible = !_isConfirmPasswordVisible;
+                                });
+                              },
+                            ),
+                            filled: true,
+                            fillColor: AppColors.surfaceVariant,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: AppColors.primary,
+                                width: 2,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 24),
 
-                        // ログインボタン
+                        // 登録ボタン
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: _isLoading ? null : _handleLogin,
+                            onPressed: _isLoading ? null : _handleRegister,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
@@ -277,7 +317,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   )
                                 : const Text(
-                                    'ログイン',
+                                    'アカウント作成',
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w600,
@@ -290,20 +330,20 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // 新規登録へ
+                  // ログインへ戻る
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'アカウントをお持ちでない方は',
+                        'すでにアカウントをお持ちの方は',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                         ),
                       ),
                       TextButton(
-                        onPressed: widget.onGoToRegister,
+                        onPressed: widget.onBackToLogin,
                         child: const Text(
-                          '新規登録',
+                          'ログイン',
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -312,17 +352,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // フッター
-                  Text(
-                    'ログインすることで利用規約に同意したものとみなされます',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white.withOpacity(0.7),
-                    ),
                   ),
                   const SizedBox(height: 24),
                 ],
@@ -334,3 +363,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'models/event.dart';
+import 'services/auth_service.dart';
 import 'screens/login_screen.dart';
+import 'screens/register_screen.dart';
 import 'screens/event_list_screen.dart';
 import 'screens/event_detail_screen.dart';
 import 'screens/my_page_screen.dart';
@@ -11,16 +14,13 @@ import 'screens/admin/event_form_screen.dart';
 import 'screens/admin/participants_screen.dart';
 import 'screens/admin/csv_import_screen.dart';
 import 'theme/app_theme.dart';
+import 'widgets/loading_view.dart';
 
 void main() async {
-  // Flutterエンジンの初期化を待つ
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Firebase初期化
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  
   runApp(const MyApp());
 }
 
@@ -46,40 +46,86 @@ class AppRoot extends StatefulWidget {
 }
 
 class _AppRootState extends State<AppRoot> {
-  bool _isLoggedIn = false;
+  final _authService = AuthService();
+  
+  // 画面状態: 'loading', 'login', 'register', 'user', 'admin'
+  String _screenState = 'loading';
   bool _isAdmin = false;
 
-  void _login({bool asAdmin = false}) {
-    setState(() {
-      _isLoggedIn = true;
-      _isAdmin = asAdmin;
+  @override
+  void initState() {
+    super.initState();
+    _checkAuthState();
+  }
+
+  Future<void> _checkAuthState() async {
+    // Firebase Authの状態を監視
+    FirebaseAuth.instance.authStateChanges().listen((user) async {
+      if (user == null) {
+        // 未ログイン
+        setState(() => _screenState = 'login');
+      } else {
+        // ログイン済み → ユーザー情報を取得
+        final appUser = await _authService.getAppUser(user.uid);
+        final isAdmin = appUser?.role == 'admin';
+        setState(() {
+          _isAdmin = isAdmin;
+          _screenState = isAdmin ? 'admin' : 'user';
+        });
+      }
     });
   }
 
-  void _logout() {
+  void _goToRegister() {
+    setState(() => _screenState = 'register');
+  }
+
+  void _goToLogin() {
+    setState(() => _screenState = 'login');
+  }
+
+  void _onLoginSuccess(bool isAdmin) {
     setState(() {
-      _isLoggedIn = false;
+      _isAdmin = isAdmin;
+      _screenState = isAdmin ? 'admin' : 'user';
+    });
+  }
+
+  Future<void> _logout() async {
+    await _authService.signOut();
+    setState(() {
+      _screenState = 'login';
       _isAdmin = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isLoggedIn) {
-      return LoginScreen(
-        onLoginSuccess: (isAdmin) => _login(asAdmin: isAdmin),
-      );
+    switch (_screenState) {
+      case 'loading':
+        return const Scaffold(
+          body: LoadingView(message: '読み込み中...'),
+        );
+      case 'login':
+        return LoginScreen(
+          onLoginSuccess: _onLoginSuccess,
+          onGoToRegister: _goToRegister,
+        );
+      case 'register':
+        return RegisterScreen(
+          onRegisterSuccess: () => _onLoginSuccess(false),
+          onBackToLogin: _goToLogin,
+        );
+      case 'admin':
+        return AdminHomeScreen(onLogout: _logout);
+      case 'user':
+      default:
+        return UserHomeScreen(onLogout: _logout);
     }
-
-    if (_isAdmin) {
-      return AdminHomeScreen(onLogout: _logout);
-    }
-
-    return UserHomeScreen(onLogout: _logout);
   }
 }
 
-// ユーザー用ホーム画面（BottomNavigationBar付き）
+// ユーザー用ホーム画面
 class UserHomeScreen extends StatefulWidget {
   final VoidCallback onLogout;
 
@@ -94,15 +140,11 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
   Event? _selectedEvent;
 
   void _showEventDetail(Event event) {
-    setState(() {
-      _selectedEvent = event;
-    });
+    setState(() => _selectedEvent = event);
   }
 
   void _hideEventDetail() {
-    setState(() {
-      _selectedEvent = null;
-    });
+    setState(() => _selectedEvent = null);
   }
 
   void _showReservationSuccess() {
@@ -119,7 +161,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.accent.withOpacity( 0.1),
+                color: AppColors.accent.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -166,7 +208,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // イベント詳細画面表示中
     if (_selectedEvent != null) {
       return EventDetailScreen(
         event: _selectedEvent!,
@@ -228,7 +269,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary.withOpacity( 0.1) : Colors.transparent,
+          color: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -267,17 +308,8 @@ class AdminHomeScreen extends StatefulWidget {
 }
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
-  String _currentScreen = 'list'; // 'list', 'form', 'edit', 'participants', 'import'
+  String _currentScreen = 'list';
   Event? _selectedEvent;
-
-  void _showDeleteSuccess(Event event) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('「${event.title}」を削除しました'),
-        backgroundColor: AppColors.success,
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -289,7 +321,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         );
       case 'edit':
         return EventFormScreen(
-          event: _selectedEvent, // 編集するイベントを渡す
+          event: _selectedEvent,
           onSave: () => setState(() => _currentScreen = 'list'),
           onCancel: () => setState(() => _currentScreen = 'list'),
         );
@@ -305,7 +337,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
         return CsvImportScreen(
           onBack: () => setState(() => _currentScreen = 'list'),
           onImport: (events) {
-            // Firestoreに保存済みなので画面遷移のみ
             debugPrint('インポートされたイベント: ${events.length}件');
           },
         );
@@ -325,8 +356,12 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               });
             },
             onDeleteEvent: (event) {
-              // モックなので実際には削除しないが、成功メッセージを表示
-              _showDeleteSuccess(event);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('「${event.title}」を削除しました'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
             },
             onCreateEvent: () => setState(() => _currentScreen = 'form'),
           ),
@@ -340,7 +375,6 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
-                    // CSVインポートボタン
                     IconButton(
                       onPressed: () => setState(() => _currentScreen = 'import'),
                       icon: const Icon(Icons.file_upload_outlined),
