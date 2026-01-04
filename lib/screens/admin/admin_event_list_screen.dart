@@ -5,11 +5,15 @@ import '../../theme/app_theme.dart';
 
 class AdminEventListScreen extends StatelessWidget {
   final Function(Event) onEventTap;
+  final Function(Event) onEditEvent;
+  final Function(Event) onDeleteEvent;
   final VoidCallback onCreateEvent;
 
   const AdminEventListScreen({
     super.key,
     required this.onEventTap,
+    required this.onEditEvent,
+    required this.onDeleteEvent,
     required this.onCreateEvent,
   });
 
@@ -35,7 +39,7 @@ class AdminEventListScreen extends StatelessWidget {
           final event = mockEvents[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
-            child: _buildAdminEventCard(event),
+            child: _buildAdminEventCard(context, event),
           );
         },
       ),
@@ -48,7 +52,7 @@ class AdminEventListScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAdminEventCard(Event event) {
+  Widget _buildAdminEventCard(BuildContext context, Event event) {
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
@@ -102,7 +106,19 @@ class AdminEventListScreen extends StatelessWidget {
                   ),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
-                    onSelected: (value) {},
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'edit':
+                          onEditEvent(event);
+                          break;
+                        case 'participants':
+                          onEventTap(event);
+                          break;
+                        case 'delete':
+                          _showDeleteConfirmDialog(context, event);
+                          break;
+                      }
+                    },
                     itemBuilder: (context) => [
                       const PopupMenuItem(
                         value: 'edit',
@@ -192,7 +208,7 @@ class AdminEventListScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {},
+                      onPressed: () => onEventTap(event),
                       icon: const Icon(Icons.people, size: 18),
                       label: const Text('参加者'),
                       style: OutlinedButton.styleFrom(
@@ -205,7 +221,7 @@ class AdminEventListScreen extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () {},
+                      onPressed: () => onEventTap(event),
                       icon: const Icon(Icons.check_circle_outline, size: 18),
                       label: const Text('出席管理'),
                       style: OutlinedButton.styleFrom(
@@ -224,6 +240,30 @@ class AdminEventListScreen extends StatelessWidget {
     );
   }
 
+  void _showDeleteConfirmDialog(BuildContext context, Event event) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('イベントを削除'),
+        content: Text('「${event.title}」を削除しますか？\nこの操作は取り消せません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              onDeleteEvent(event);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStatusBadge(Event event) {
     final now = DateTime.now();
     final isUpcoming = event.date.isAfter(now);
@@ -232,7 +272,7 @@ class AdminEventListScreen extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.textHint.withOpacity( 0.1),
+          color: AppColors.textHint.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Text(
@@ -250,7 +290,7 @@ class AdminEventListScreen extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
-          color: AppColors.error.withOpacity( 0.1),
+          color: AppColors.error.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
         ),
         child: const Text(
@@ -267,7 +307,7 @@ class AdminEventListScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.accent.withOpacity( 0.1),
+        color: AppColors.accent.withOpacity(0.1),
         borderRadius: BorderRadius.circular(12),
       ),
       child: const Text(
@@ -287,4 +327,3 @@ class AdminEventListScreen extends StatelessWidget {
     return '${date.month}/${date.day}($weekday) ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 }
-

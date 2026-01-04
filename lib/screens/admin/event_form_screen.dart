@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import '../../models/event.dart';
 import '../../theme/app_theme.dart';
 
 class EventFormScreen extends StatefulWidget {
+  final Event? event; // nullなら新規作成、あれば編集
   final VoidCallback onSave;
   final VoidCallback onCancel;
 
   const EventFormScreen({
     super.key,
+    this.event,
     required this.onSave,
     required this.onCancel,
   });
@@ -16,12 +19,35 @@ class EventFormScreen extends StatefulWidget {
 }
 
 class _EventFormScreenState extends State<EventFormScreen> {
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _locationController = TextEditingController();
-  final _capacityController = TextEditingController(text: '20');
-  DateTime _selectedDate = DateTime.now().add(const Duration(days: 7));
-  TimeOfDay _selectedTime = const TimeOfDay(hour: 14, minute: 0);
+  late final TextEditingController _titleController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _locationController;
+  late final TextEditingController _capacityController;
+  late DateTime _selectedDate;
+  late TimeOfDay _selectedTime;
+
+  bool get isEditing => widget.event != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // 編集モードの場合は既存のデータを入れる
+    if (widget.event != null) {
+      _titleController = TextEditingController(text: widget.event!.title);
+      _descriptionController = TextEditingController(text: widget.event!.description);
+      _locationController = TextEditingController(text: widget.event!.location);
+      _capacityController = TextEditingController(text: widget.event!.capacity.toString());
+      _selectedDate = widget.event!.date;
+      _selectedTime = TimeOfDay(hour: widget.event!.date.hour, minute: widget.event!.date.minute);
+    } else {
+      _titleController = TextEditingController();
+      _descriptionController = TextEditingController();
+      _locationController = TextEditingController();
+      _capacityController = TextEditingController(text: '20');
+      _selectedDate = DateTime.now().add(const Duration(days: 7));
+      _selectedTime = const TimeOfDay(hour: 14, minute: 0);
+    }
+  }
 
   @override
   void dispose() {
@@ -32,12 +58,44 @@ class _EventFormScreenState extends State<EventFormScreen> {
     super.dispose();
   }
 
+  void _handleSave() {
+    // バリデーション
+    if (_titleController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('イベント名を入力してください'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+    if (_locationController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('開催場所を入力してください'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // 成功メッセージ
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(isEditing ? 'イベントを更新しました' : 'イベントを作成しました'),
+        backgroundColor: AppColors.success,
+      ),
+    );
+    
+    widget.onSave();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('イベント作成'),
+        title: Text(isEditing ? 'イベント編集' : 'イベント作成'),
         backgroundColor: AppColors.surface,
         elevation: 0,
         leading: IconButton(
@@ -46,7 +104,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: widget.onSave,
+            onPressed: _handleSave,
             child: const Text(
               '保存',
               style: TextStyle(
@@ -70,6 +128,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
               decoration: const InputDecoration(
                 hintText: '例: 春のBBQパーティー',
               ),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 24),
             // 日時
@@ -96,6 +155,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
                 hintText: '例: 代々木公園 BBQエリア',
                 prefixIcon: Icon(Icons.location_on_outlined),
               ),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 24),
             // 定員
@@ -109,6 +169,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
                 prefixIcon: Icon(Icons.people_outline),
                 suffixText: '人',
               ),
+              onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 24),
             // 説明
@@ -130,13 +191,13 @@ class _EventFormScreenState extends State<EventFormScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: widget.onSave,
+                onPressed: _handleSave,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: const Text(
-                  'イベントを作成',
-                  style: TextStyle(
+                child: Text(
+                  isEditing ? 'イベントを更新' : 'イベントを作成',
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -237,9 +298,9 @@ class _EventFormScreenState extends State<EventFormScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity( 0.05),
+        color: AppColors.primary.withOpacity(0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withOpacity( 0.2)),
+        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,7 +310,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity( 0.1),
+                  color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
@@ -327,4 +388,3 @@ class _EventFormScreenState extends State<EventFormScreen> {
     );
   }
 }
-

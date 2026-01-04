@@ -258,14 +258,29 @@ class AdminHomeScreen extends StatefulWidget {
 }
 
 class _AdminHomeScreenState extends State<AdminHomeScreen> {
-  String _currentScreen = 'list'; // 'list', 'form', 'participants', 'import'
+  String _currentScreen = 'list'; // 'list', 'form', 'edit', 'participants', 'import'
   Event? _selectedEvent;
+
+  void _showDeleteSuccess(Event event) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('「${event.title}」を削除しました'),
+        backgroundColor: AppColors.success,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     switch (_currentScreen) {
       case 'form':
         return EventFormScreen(
+          onSave: () => setState(() => _currentScreen = 'list'),
+          onCancel: () => setState(() => _currentScreen = 'list'),
+        );
+      case 'edit':
+        return EventFormScreen(
+          event: _selectedEvent, // 編集するイベントを渡す
           onSave: () => setState(() => _currentScreen = 'list'),
           onCancel: () => setState(() => _currentScreen = 'list'),
         );
@@ -291,6 +306,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                 _selectedEvent = event;
                 _currentScreen = 'participants';
               });
+            },
+            onEditEvent: (event) {
+              setState(() {
+                _selectedEvent = event;
+                _currentScreen = 'edit';
+              });
+            },
+            onDeleteEvent: (event) {
+              // モックなので実際には削除しないが、成功メッセージを表示
+              _showDeleteSuccess(event);
             },
             onCreateEvent: () => setState(() => _currentScreen = 'form'),
           ),

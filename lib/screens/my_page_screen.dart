@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../data/mock_data.dart';
 import '../models/event.dart';
 import '../theme/app_theme.dart';
+import '../utils/month_colors.dart';
 
-class MyPageScreen extends StatelessWidget {
+class MyPageScreen extends StatefulWidget {
   final Function(Event) onEventTap;
   final VoidCallback onLogout;
 
@@ -14,10 +15,121 @@ class MyPageScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    // 予約済みイベントを取得
+  State<MyPageScreen> createState() => _MyPageScreenState();
+}
+
+class _MyPageScreenState extends State<MyPageScreen> {
+  bool _showAllReservations = false;
+
+  List<Event> get reservedEvents {
     final reservedEventIds = mockReservations.map((r) => r.eventId).toSet();
-    final reservedEvents = mockEvents.where((e) => reservedEventIds.contains(e.eventId)).toList();
+    return mockEvents.where((e) => reservedEventIds.contains(e.eventId)).toList();
+  }
+
+  void _showCancelDialog(Event event) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('予約をキャンセル'),
+        content: Text('「${event.title}」の予約をキャンセルしますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('いいえ'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // モックなので実際にはキャンセルしないが、メッセージを表示
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('「${event.title}」の予約をキャンセルしました'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('キャンセルする'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAllReservationsSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            // ハンドル
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // ヘッダー
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    '予約中のイベント',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    '${reservedEvents.length}件',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // リスト
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                padding: const EdgeInsets.all(16),
+                itemCount: reservedEvents.length,
+                itemBuilder: (context, index) {
+                  final event = reservedEvents[index];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _buildReservationCard(event, showCancel: true),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final events = reservedEvents;
+    final displayEvents = _showAllReservations ? events : events.take(3).toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -27,17 +139,16 @@ class MyPageScreen extends StatelessWidget {
           SliverAppBar(
             expandedHeight: 200,
             pinned: true,
-            backgroundColor: const Color(0xFF4DB6AC), // ミントグリーン
+            backgroundColor: const Color(0xFF4DB6AC),
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: const BoxDecoration(
-                  // ミントグリーンのグラデーション
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Color(0xFF4DB6AC), // Teal 300
-                      Color(0xFF80CBC4), // Teal 200
+                      Color(0xFF4DB6AC),
+                      Color(0xFF80CBC4),
                     ],
                   ),
                 ),
@@ -55,7 +166,7 @@ class MyPageScreen extends StatelessWidget {
                         ),
                         child: CircleAvatar(
                           radius: 40,
-                          backgroundColor: Colors.white.withOpacity( 0.2),
+                          backgroundColor: Colors.white.withOpacity(0.2),
                           child: Text(
                             mockCurrentUser.name.substring(0, 1),
                             style: const TextStyle(
@@ -80,7 +191,7 @@ class MyPageScreen extends StatelessWidget {
                         mockCurrentUser.email,
                         style: TextStyle(
                           fontSize: 14,
-                          color: Colors.white.withOpacity( 0.8),
+                          color: Colors.white.withOpacity(0.8),
                         ),
                       ),
                     ],
@@ -99,7 +210,7 @@ class MyPageScreen extends StatelessWidget {
                     child: _buildStatCard(
                       icon: Icons.event_available_rounded,
                       label: '予約中',
-                      value: '${reservedEvents.length}',
+                      value: '${events.length}',
                       color: AppColors.primary,
                     ),
                   ),
@@ -141,7 +252,7 @@ class MyPageScreen extends StatelessWidget {
                     ),
                   ),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: _showAllReservationsSheet,
                     child: const Text('すべて見る'),
                   ),
                 ],
@@ -149,7 +260,7 @@ class MyPageScreen extends StatelessWidget {
             ),
           ),
           // 予約一覧
-          if (reservedEvents.isEmpty)
+          if (events.isEmpty)
             const SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.all(40),
@@ -178,13 +289,13 @@ class MyPageScreen extends StatelessWidget {
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) {
-                    final event = reservedEvents[index];
+                    final event = displayEvents[index];
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _buildReservationCard(event),
                     );
                   },
-                  childCount: reservedEvents.length,
+                  childCount: displayEvents.length,
                 ),
               ),
             ),
@@ -206,25 +317,29 @@ class MyPageScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   _buildMenuItem(
+                    context: context,
                     icon: Icons.notifications_outlined,
                     label: '通知設定',
-                    onTap: () {},
+                    onTap: () => _showComingSoonSnackBar(context),
                   ),
                   _buildMenuItem(
+                    context: context,
                     icon: Icons.help_outline_rounded,
                     label: 'ヘルプ・お問い合わせ',
-                    onTap: () {},
+                    onTap: () => _showComingSoonSnackBar(context),
                   ),
                   _buildMenuItem(
+                    context: context,
                     icon: Icons.info_outline_rounded,
                     label: 'アプリについて',
-                    onTap: () {},
+                    onTap: () => _showAboutDialog(context),
                   ),
                   const SizedBox(height: 16),
                   _buildMenuItem(
+                    context: context,
                     icon: Icons.logout_rounded,
                     label: 'ログアウト',
-                    onTap: onLogout,
+                    onTap: widget.onLogout,
                     isDestructive: true,
                   ),
                 ],
@@ -232,6 +347,39 @@ class MyPageScreen extends StatelessWidget {
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ],
+      ),
+    );
+  }
+
+  void _showComingSoonSnackBar(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('この機能は準備中です'),
+        backgroundColor: AppColors.textSecondary,
+      ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('イベント予約アプリ'),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('バージョン: 1.0.0'),
+            SizedBox(height: 8),
+            Text('コミュニティイベントの予約・管理を簡単にするアプリです。'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('閉じる'),
+          ),
         ],
       ),
     );
@@ -275,12 +423,13 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildReservationCard(Event event) {
+  Widget _buildReservationCard(Event event, {bool showCancel = false}) {
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: () => onEventTap(event),
+        onTap: () => widget.onEventTap(event),
+        onLongPress: () => _showCancelDialog(event),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -295,16 +444,16 @@ class MyPageScreen extends StatelessWidget {
                 width: 50,
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 decoration: BoxDecoration(
-                  color: _getMonthColor(event.date.month),
+                  color: MonthColors.getBackgroundColor(event.date.month),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Column(
                   children: [
                     Text(
-                      '${event.date.month}月',
+                      MonthColors.getMonthName(event.date.month),
                       style: TextStyle(
                         fontSize: 11,
-                        color: _getMonthTextColor(event.date.month),
+                        color: MonthColors.getTextColor(event.date.month),
                       ),
                     ),
                     Text(
@@ -312,7 +461,7 @@ class MyPageScreen extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: _getMonthTextColor(event.date.month),
+                        color: MonthColors.getTextColor(event.date.month),
                       ),
                     ),
                   ],
@@ -354,10 +503,17 @@ class MyPageScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: AppColors.textHint,
-              ),
+              if (showCancel)
+                IconButton(
+                  icon: const Icon(Icons.cancel_outlined, color: AppColors.error),
+                  onPressed: () => _showCancelDialog(event),
+                  tooltip: '予約をキャンセル',
+                )
+              else
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: AppColors.textHint,
+                ),
             ],
           ),
         ),
@@ -366,6 +522,7 @@ class MyPageScreen extends StatelessWidget {
   }
 
   Widget _buildMenuItem({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required VoidCallback onTap,
@@ -406,42 +563,4 @@ class MyPageScreen extends StatelessWidget {
     );
   }
 
-  // 月ごとのパステルカラー（背景色）
-  Color _getMonthColor(int month) {
-    const monthColors = [
-      Color(0xFFE3F2FD), // 1月: 薄い青（冬）
-      Color(0xFFFCE4EC), // 2月: 薄いピンク（バレンタイン）
-      Color(0xFFF3E5F5), // 3月: 薄い紫（ひな祭り）
-      Color(0xFFFFF0F5), // 4月: 桜ピンク
-      Color(0xFFE8F5E9), // 5月: 薄い緑（新緑）
-      Color(0xFFE0F7FA), // 6月: 薄い水色（梅雨）
-      Color(0xFFFFF3E0), // 7月: 薄いオレンジ（夏）
-      Color(0xFFFFFDE7), // 8月: 薄い黄色（向日葵）
-      Color(0xFFFBE9E7), // 9月: 薄いコーラル（秋の始まり）
-      Color(0xFFFFECB3), // 10月: 薄い山吹（紅葉）
-      Color(0xFFEFEBE9), // 11月: 薄いベージュ（晩秋）
-      Color(0xFFECEFF1), // 12月: 薄いグレー（冬）
-    ];
-    return monthColors[month - 1];
-  }
-
-  // 月ごとのテキストカラー
-  Color _getMonthTextColor(int month) {
-    const textColors = [
-      Color(0xFF1565C0), // 1月: 青
-      Color(0xFFC2185B), // 2月: ピンク
-      Color(0xFF7B1FA2), // 3月: 紫
-      Color(0xFFD81B60), // 4月: 桜色
-      Color(0xFF2E7D32), // 5月: 緑
-      Color(0xFF00838F), // 6月: シアン
-      Color(0xFFEF6C00), // 7月: オレンジ
-      Color(0xFFF9A825), // 8月: 黄色
-      Color(0xFFD84315), // 9月: コーラル
-      Color(0xFFFF8F00), // 10月: 山吹
-      Color(0xFF5D4037), // 11月: 茶色
-      Color(0xFF455A64), // 12月: グレー
-    ];
-    return textColors[month - 1];
-  }
 }
-
