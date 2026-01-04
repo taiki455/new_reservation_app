@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../data/mock_data.dart';
 import '../../models/event.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/loading_view.dart';
+import '../../widgets/error_view.dart';
+import '../../utils/result.dart';
 
-class AdminEventListScreen extends StatelessWidget {
+class AdminEventListScreen extends StatefulWidget {
   final Function(Event) onEventTap;
   final Function(Event) onEditEvent;
   final Function(Event) onDeleteEvent;
@@ -18,6 +21,36 @@ class AdminEventListScreen extends StatelessWidget {
   });
 
   @override
+  State<AdminEventListScreen> createState() => _AdminEventListScreenState();
+}
+
+class _AdminEventListScreenState extends State<AdminEventListScreen> {
+  final _firestoreService = FirestoreService();
+
+  Future<void> _deleteEvent(Event event) async {
+    try {
+      await _firestoreService.deleteEvent(event.eventId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('「${event.title}」を削除しました'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('削除に失敗しました: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -28,23 +61,70 @@ class AdminEventListScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
-            onPressed: onCreateEvent,
+            onPressed: widget.onCreateEvent,
           ),
         ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: mockEvents.length,
-        itemBuilder: (context, index) {
-          final event = mockEvents[index];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _buildAdminEventCard(context, event),
+      body: StreamBuilder<List<Event>>(
+        stream: _firestoreService.getEvents(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const LoadingView(message: 'イベントを読み込み中...');
+          }
+
+          if (snapshot.hasError) {
+            return ErrorView(
+              error: AppErrors.custom('イベントの取得に失敗しました'),
+              onRetry: () => setState(() {}),
+            );
+          }
+
+          final events = snapshot.data ?? [];
+
+          if (events.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.event_busy_rounded,
+                    size: 64,
+                    color: AppColors.textHint.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'イベントがありません',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton.icon(
+                    onPressed: widget.onCreateEvent,
+                    icon: const Icon(Icons.add),
+                    label: const Text('新規作成'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: events.length,
+            itemBuilder: (context, index) {
+              final event = events[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildAdminEventCard(context, event),
+              );
+            },
           );
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: onCreateEvent,
+        onPressed: widget.onCreateEvent,
         icon: const Icon(Icons.add),
         label: const Text('新規作成'),
         backgroundColor: AppColors.primary,
@@ -57,7 +137,7 @@ class AdminEventListScreen extends StatelessWidget {
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        onTap: () => onEventTap(event),
+        onTap: () => widget.onEventTap(event),
         borderRadius: BorderRadius.circular(16),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -109,10 +189,10 @@ class AdminEventListScreen extends StatelessWidget {
                     onSelected: (value) {
                       switch (value) {
                         case 'edit':
-                          onEditEvent(event);
+                          widget.onEditEvent(event);
                           break;
                         case 'participants':
-                          onEventTap(event);
+                          widget.onEventTap(event);
                           break;
                         case 'delete':
                           _showDeleteConfirmDialog(context, event);
@@ -208,7 +288,7 @@ class AdminEventListScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => onEventTap(event),
+                      onPressed: () => widget.onEventTap(event),
                       icon: const Icon(Icons.people, size: 18),
                       label: const Text('参加者'),
                       style: OutlinedButton.styleFrom(
@@ -221,7 +301,7 @@ class AdminEventListScreen extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => onEventTap(event),
+                      onPressed: () => widget.onEventTap(event),
                       icon: const Icon(Icons.check_circle_outline, size: 18),
                       label: const Text('出席管理'),
                       style: OutlinedButton.styleFrom(
@@ -254,7 +334,7 @@ class AdminEventListScreen extends StatelessWidget {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              onDeleteEvent(event);
+              _deleteEvent(event);
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('削除'),

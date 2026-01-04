@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../models/event.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 
 class CsvImportScreen extends StatefulWidget {
   final VoidCallback onBack;
-  final Function(List<Map<String, String>> events) onImport;
+  final Function(List<Event> events) onImport;
 
   const CsvImportScreen({
     super.key,
@@ -16,9 +18,11 @@ class CsvImportScreen extends StatefulWidget {
 }
 
 class _CsvImportScreenState extends State<CsvImportScreen> {
+  final _firestoreService = FirestoreService();
   final _csvController = TextEditingController();
   List<Map<String, String>> _previewData = [];
   String? _errorMessage;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -103,7 +107,7 @@ class _CsvImportScreenState extends State<CsvImportScreen> {
     return result;
   }
 
-  void _handleImport() {
+  Future<void> _handleImport() async {
     if (_previewData.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -114,16 +118,60 @@ class _CsvImportScreenState extends State<CsvImportScreen> {
       return;
     }
 
-    widget.onImport(_previewData);
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${_previewData.length}件のイベントをインポートしました'),
-        backgroundColor: AppColors.success,
-      ),
-    );
-    
-    widget.onBack();
+    setState(() => _isLoading = true);
+
+    try {
+      // CSVデータをEventに変換
+      final events = <Event>[];
+      for (final data in _previewData) {
+        // 日付をパース（YYYY-MM-DD HH:MM 形式を想定）
+        DateTime eventDate;
+        try {
+          eventDate = DateTime.parse(data['日付'] ?? '');
+        } catch (_) {
+          // 日付パースに失敗した場合は1週間後に設定
+          eventDate = DateTime.now().add(const Duration(days: 7));
+        }
+
+        events.add(Event(
+          eventId: '', // Firestoreが生成
+          title: data['タイトル'] ?? '',
+          description: data['説明'] ?? '',
+          date: eventDate,
+          capacity: int.tryParse(data['定員'] ?? '20') ?? 20,
+          currentParticipants: 0,
+          createdBy: 'admin',
+          location: data['場所'] ?? '',
+        ));
+      }
+
+      // Firestoreに一括保存
+      await _firestoreService.createEvents(events);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${events.length}件のイベントをインポートしました'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        widget.onImport(events);
+        widget.onBack();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('インポートエラー: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -136,7 +184,7 @@ class _CsvImportScreenState extends State<CsvImportScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: widget.onBack,
+          onPressed: _isLoading ? null : widget.onBack,
         ),
       ),
       body: SingleChildScrollView(
@@ -222,7 +270,7 @@ class _CsvImportScreenState extends State<CsvImportScreen> {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: _parseCSV,
+                onPressed: _isLoading ? null : _parseCSV,
                 icon: const Icon(Icons.preview),
                 label: const Text('プレビュー'),
                 style: OutlinedButton.styleFrom(
@@ -307,9 +355,18 @@ class _CsvImportScreenState extends State<CsvImportScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: _handleImport,
-                  icon: const Icon(Icons.file_upload),
-                  label: Text('${_previewData.length}件をインポート'),
+                  onPressed: _isLoading ? null : _handleImport,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.file_upload),
+                  label: Text(_isLoading ? 'インポート中...' : '${_previewData.length}件をインポート'),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
@@ -381,4 +438,3 @@ class _CsvImportScreenState extends State<CsvImportScreen> {
     );
   }
 }
-

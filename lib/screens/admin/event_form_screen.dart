@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../models/event.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_theme.dart';
 
 class EventFormScreen extends StatefulWidget {
@@ -19,12 +20,14 @@ class EventFormScreen extends StatefulWidget {
 }
 
 class _EventFormScreenState extends State<EventFormScreen> {
+  final _firestoreService = FirestoreService();
   late final TextEditingController _titleController;
   late final TextEditingController _descriptionController;
   late final TextEditingController _locationController;
   late final TextEditingController _capacityController;
   late DateTime _selectedDate;
   late TimeOfDay _selectedTime;
+  bool _isLoading = false;
 
   bool get isEditing => widget.event != null;
 
@@ -58,7 +61,7 @@ class _EventFormScreenState extends State<EventFormScreen> {
     super.dispose();
   }
 
-  void _handleSave() {
+  Future<void> _handleSave() async {
     // バリデーション
     if (_titleController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -79,15 +82,58 @@ class _EventFormScreenState extends State<EventFormScreen> {
       return;
     }
 
-    // 成功メッセージ
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(isEditing ? 'イベントを更新しました' : 'イベントを作成しました'),
-        backgroundColor: AppColors.success,
-      ),
-    );
-    
-    widget.onSave();
+    setState(() => _isLoading = true);
+
+    try {
+      // 日時を組み合わせる
+      final eventDate = DateTime(
+        _selectedDate.year,
+        _selectedDate.month,
+        _selectedDate.day,
+        _selectedTime.hour,
+        _selectedTime.minute,
+      );
+
+      final event = Event(
+        eventId: widget.event?.eventId ?? '', // 新規作成時は空（Firestoreが生成）
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim(),
+        date: eventDate,
+        capacity: int.tryParse(_capacityController.text) ?? 20,
+        currentParticipants: widget.event?.currentParticipants ?? 0,
+        createdBy: 'admin', // TODO: 実際のユーザーIDを使う
+        location: _locationController.text.trim(),
+      );
+
+      if (isEditing) {
+        await _firestoreService.updateEvent(event);
+      } else {
+        await _firestoreService.createEvent(event);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(isEditing ? 'イベントを更新しました' : 'イベントを作成しました'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        widget.onSave();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('エラー: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -100,18 +146,24 @@ class _EventFormScreenState extends State<EventFormScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: widget.onCancel,
+          onPressed: _isLoading ? null : widget.onCancel,
         ),
         actions: [
           TextButton(
-            onPressed: _handleSave,
-            child: const Text(
-              '保存',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
+            onPressed: _isLoading ? null : _handleSave,
+            child: _isLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text(
+                    '保存',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
           ),
         ],
       ),
@@ -191,17 +243,26 @@ class _EventFormScreenState extends State<EventFormScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _handleSave,
+                onPressed: _isLoading ? null : _handleSave,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: Text(
-                  isEditing ? 'イベントを更新' : 'イベントを作成',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        isEditing ? 'イベントを更新' : 'イベントを作成',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
             const SizedBox(height: 16),

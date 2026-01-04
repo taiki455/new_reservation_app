@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "47644387836",
+    "project_id": "event-reservation-app-34d5b",
+    "storage_bucket": "event-reservation-app-34d5b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:47644387836:android:73a30fb35d5fcbdbe9aa79",
+        "android_client_info": {
+          "package_name": "com.example.event_reservation_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCuLjQEUgNLNEcCm9Q0Vk1Vfeqdg_CuJOM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

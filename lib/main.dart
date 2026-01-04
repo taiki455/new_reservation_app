@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 import 'models/event.dart';
 import 'screens/login_screen.dart';
 import 'screens/event_list_screen.dart';
@@ -9,9 +11,16 @@ import 'screens/admin/event_form_screen.dart';
 import 'screens/admin/participants_screen.dart';
 import 'screens/admin/csv_import_screen.dart';
 import 'theme/app_theme.dart';
-import 'data/mock_data.dart';
 
-void main() {
+void main() async {
+  // Flutterエンジンの初期化を待つ
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Firebase初期化
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
   runApp(const MyApp());
 }
 
@@ -285,16 +294,18 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
           onCancel: () => setState(() => _currentScreen = 'list'),
         );
       case 'participants':
+        if (_selectedEvent == null) {
+          return const Center(child: Text('イベントが選択されていません'));
+        }
         return ParticipantsScreen(
-          event: _selectedEvent ?? mockEvents.first,
+          event: _selectedEvent!,
           onBack: () => setState(() => _currentScreen = 'list'),
         );
       case 'import':
         return CsvImportScreen(
           onBack: () => setState(() => _currentScreen = 'list'),
           onImport: (events) {
-            // TODO: 実際のインポート処理を実装
-            // 今はモックなのでログだけ
+            // Firestoreに保存済みなので画面遷移のみ
             debugPrint('インポートされたイベント: ${events.length}件');
           },
         );
