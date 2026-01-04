@@ -174,5 +174,14 @@ class FirestoreService {
     if (snapshot.docs.isEmpty) return null;
     return Reservation.fromFirestore(snapshot.docs.first);
   }
+
+  // ========== ユーザー関連 ==========
+
+  /// ユーザー情報を取得
+  Future<Map<String, dynamic>?> getUserInfo(String userId) async {
+    final doc = await _db.collection('users').doc(userId).get();
+    if (!doc.exists) return null;
+    return doc.data();
+  }
 }
 

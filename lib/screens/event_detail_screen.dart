@@ -6,12 +6,18 @@ class EventDetailScreen extends StatelessWidget {
   final Event event;
   final VoidCallback onReserve;
   final VoidCallback onBack;
+  final VoidCallback? onCancelReservation;
+  final bool isReserved;
+  final bool isLoading;
 
   const EventDetailScreen({
     super.key,
     required this.event,
     required this.onReserve,
     required this.onBack,
+    this.onCancelReservation,
+    this.isReserved = false,
+    this.isLoading = false,
   });
 
   @override
@@ -200,23 +206,60 @@ class EventDetailScreen extends StatelessWidget {
               ),
               const SizedBox(width: 20),
               Expanded(
-                child: ElevatedButton(
-                  onPressed: event.isFull ? null : onReserve,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: event.isFull ? AppColors.textHint : AppColors.primary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    event.isFull ? '満席です' : '予約する',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
+                child: isReserved
+                    ? OutlinedButton(
+                        onPressed: isLoading ? null : onCancelReservation,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: const BorderSide(color: AppColors.error),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.error,
+                                ),
+                              )
+                            : const Text(
+                                '予約をキャンセル',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.error,
+                                ),
+                              ),
+                      )
+                    : ElevatedButton(
+                        onPressed: (event.isFull || isLoading) ? null : onReserve,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: event.isFull ? AppColors.textHint : AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Text(
+                                event.isFull ? '満席です' : '予約する',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                      ),
               ),
             ],
           ),

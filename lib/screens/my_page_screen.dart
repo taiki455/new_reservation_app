@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../data/mock_data.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/event.dart';
+import '../models/reservation.dart';
+import '../services/firestore_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/month_colors.dart';
 
@@ -19,44 +21,300 @@ class MyPageScreen extends StatefulWidget {
 }
 
 class _MyPageScreenState extends State<MyPageScreen> {
-  bool _showAllReservations = false;
+  final _firestoreService = FirestoreService();
+  final _user = FirebaseAuth.instance.currentUser;
 
-  List<Event> get reservedEvents {
-    final reservedEventIds = mockReservations.map((r) => r.eventId).toSet();
-    return mockEvents.where((e) => reservedEventIds.contains(e.eventId)).toList();
-  }
-
-  void _showCancelDialog(Event event) {
-    showDialog(
+  Future<void> _cancelReservation(Reservation reservation, Event event) async {
+    // 確認ダイアログ
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('予約をキャンセル'),
         content: Text('「${event.title}」の予約をキャンセルしますか？'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('いいえ'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // モックなので実際にはキャンセルしないが、メッセージを表示
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('「${event.title}」の予約をキャンセルしました'),
-                  backgroundColor: AppColors.success,
-                ),
-              );
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('キャンセルする'),
           ),
         ],
       ),
     );
+
+    if (confirmed != true) return;
+
+    try {
+      await _firestoreService.cancelReservation(reservation.reservationId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('「${event.title}」の予約をキャンセルしました'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('キャンセルに失敗しました: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
-  void _showAllReservationsSheet() {
+  @override
+  Widget build(BuildContext context) {
+    final userId = _user?.uid;
+    if (userId == null) {
+      return const Scaffold(
+        body: Center(child: Text('ログインが必要です')),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: StreamBuilder<List<Reservation>>(
+        stream: _firestoreService.getUserReservations(userId),
+        builder: (context, reservationSnapshot) {
+          return StreamBuilder<List<Event>>(
+            stream: _firestoreService.getEvents(),
+            builder: (context, eventSnapshot) {
+              // 予約中のイベントを取得
+              final reservations = reservationSnapshot.data ?? [];
+              final allEvents = eventSnapshot.data ?? [];
+              
+              // 予約IDとイベントをマッピング
+              final reservedEventIds = reservations.map((r) => r.eventId).toSet();
+              final reservedEvents = allEvents
+                  .where((e) => reservedEventIds.contains(e.eventId))
+                  .toList();
+
+              return CustomScrollView(
+                slivers: [
+                  // ヘッダー
+                  SliverAppBar(
+                    expandedHeight: 200,
+                    pinned: true,
+                    backgroundColor: const Color(0xFF4DB6AC),
+                    flexibleSpace: FlexibleSpaceBar(
+                      background: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0xFF4DB6AC),
+                              Color(0xFF80CBC4),
+                            ],
+                          ),
+                        ),
+                        child: SafeArea(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const SizedBox(height: 20),
+                              // アバター
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.white, width: 3),
+                                ),
+                                child: CircleAvatar(
+                                  radius: 40,
+                                  backgroundColor: Colors.white.withOpacity(0.2),
+                                  child: Text(
+                                    (_user?.displayName ?? 'U').substring(0, 1).toUpperCase(),
+                                    style: const TextStyle(
+                                      fontSize: 32,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                _user?.displayName ?? 'ユーザー',
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _user?.email ?? '',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white.withOpacity(0.8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // 統計カード
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _buildStatCard(
+                              icon: Icons.event_available_rounded,
+                              label: '予約中',
+                              value: '${reservedEvents.length}',
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildStatCard(
+                              icon: Icons.check_circle_rounded,
+                              label: '参加済み',
+                              value: '${reservations.where((r) => r.attended).length}',
+                              color: AppColors.accent,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 予約一覧セクション
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            '予約中のイベント',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          if (reservedEvents.length > 3)
+                            TextButton(
+                              onPressed: () => _showAllReservationsSheet(reservations, reservedEvents),
+                              child: const Text('すべて見る'),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 予約一覧
+                  if (reservedEvents.isEmpty)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(40),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.event_busy_rounded,
+                              size: 64,
+                              color: AppColors.textHint,
+                            ),
+                            SizedBox(height: 16),
+                            Text(
+                              '予約中のイベントはありません',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final event = reservedEvents[index];
+                            final reservation = reservations.firstWhere(
+                              (r) => r.eventId == event.eventId,
+                            );
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildReservationCard(event, reservation),
+                            );
+                          },
+                          childCount: reservedEvents.length > 3 ? 3 : reservedEvents.length,
+                        ),
+                      ),
+                    ),
+                  // メニューセクション
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 8),
+                          const Text(
+                            '設定',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildMenuItem(
+                            context: context,
+                            icon: Icons.notifications_outlined,
+                            label: '通知設定',
+                            onTap: () => _showComingSoonSnackBar(context),
+                          ),
+                          _buildMenuItem(
+                            context: context,
+                            icon: Icons.help_outline_rounded,
+                            label: 'ヘルプ・お問い合わせ',
+                            onTap: () => _showComingSoonSnackBar(context),
+                          ),
+                          _buildMenuItem(
+                            context: context,
+                            icon: Icons.info_outline_rounded,
+                            label: 'アプリについて',
+                            onTap: () => _showAboutDialog(context),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildMenuItem(
+                            context: context,
+                            icon: Icons.logout_rounded,
+                            label: 'ログアウト',
+                            onTap: widget.onLogout,
+                            isDestructive: true,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  void _showAllReservationsSheet(List<Reservation> reservations, List<Event> reservedEvents) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -113,241 +371,18 @@ class _MyPageScreenState extends State<MyPageScreen> {
                 itemCount: reservedEvents.length,
                 itemBuilder: (context, index) {
                   final event = reservedEvents[index];
+                  final reservation = reservations.firstWhere(
+                    (r) => r.eventId == event.eventId,
+                  );
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildReservationCard(event, showCancel: true),
+                    child: _buildReservationCard(event, reservation, showCancel: true),
                   );
                 },
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final events = reservedEvents;
-    final displayEvents = _showAllReservations ? events : events.take(3).toList();
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: CustomScrollView(
-        slivers: [
-          // ヘッダー
-          SliverAppBar(
-            expandedHeight: 200,
-            pinned: true,
-            backgroundColor: const Color(0xFF4DB6AC),
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      Color(0xFF4DB6AC),
-                      Color(0xFF80CBC4),
-                    ],
-                  ),
-                ),
-                child: SafeArea(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 20),
-                      // アバター
-                      Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 3),
-                        ),
-                        child: CircleAvatar(
-                          radius: 40,
-                          backgroundColor: Colors.white.withOpacity(0.2),
-                          child: Text(
-                            mockCurrentUser.name.substring(0, 1),
-                            style: const TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        mockCurrentUser.name,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        mockCurrentUser.email,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.8),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          // 統計カード
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.event_available_rounded,
-                      label: '予約中',
-                      value: '${events.length}',
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.check_circle_rounded,
-                      label: '参加済み',
-                      value: '8',
-                      color: AppColors.accent,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildStatCard(
-                      icon: Icons.star_rounded,
-                      label: 'ポイント',
-                      value: '120',
-                      color: AppColors.warning,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // 予約一覧セクション
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    '予約中のイベント',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _showAllReservationsSheet,
-                    child: const Text('すべて見る'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // 予約一覧
-          if (events.isEmpty)
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(40),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.event_busy_rounded,
-                      size: 64,
-                      color: AppColors.textHint,
-                    ),
-                    SizedBox(height: 16),
-                    Text(
-                      '予約中のイベントはありません',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final event = displayEvents[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildReservationCard(event),
-                    );
-                  },
-                  childCount: displayEvents.length,
-                ),
-              ),
-            ),
-          // メニューセクション
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 8),
-                  const Text(
-                    '設定',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.notifications_outlined,
-                    label: '通知設定',
-                    onTap: () => _showComingSoonSnackBar(context),
-                  ),
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.help_outline_rounded,
-                    label: 'ヘルプ・お問い合わせ',
-                    onTap: () => _showComingSoonSnackBar(context),
-                  ),
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.info_outline_rounded,
-                    label: 'アプリについて',
-                    onTap: () => _showAboutDialog(context),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildMenuItem(
-                    context: context,
-                    icon: Icons.logout_rounded,
-                    label: 'ログアウト',
-                    onTap: widget.onLogout,
-                    isDestructive: true,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
-        ],
       ),
     );
   }
@@ -423,13 +458,13 @@ class _MyPageScreenState extends State<MyPageScreen> {
     );
   }
 
-  Widget _buildReservationCard(Event event, {bool showCancel = false}) {
+  Widget _buildReservationCard(Event event, Reservation reservation, {bool showCancel = false}) {
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () => widget.onEventTap(event),
-        onLongPress: () => _showCancelDialog(event),
+        onLongPress: () => _cancelReservation(reservation, event),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.all(16),
@@ -506,7 +541,7 @@ class _MyPageScreenState extends State<MyPageScreen> {
               if (showCancel)
                 IconButton(
                   icon: const Icon(Icons.cancel_outlined, color: AppColors.error),
-                  onPressed: () => _showCancelDialog(event),
+                  onPressed: () => _cancelReservation(reservation, event),
                   tooltip: '予約をキャンセル',
                 )
               else
@@ -562,5 +597,4 @@ class _MyPageScreenState extends State<MyPageScreen> {
       ),
     );
   }
-
 }

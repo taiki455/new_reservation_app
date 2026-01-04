@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'models/event.dart';
 import 'services/auth_service.dart';
+import 'services/firestore_service.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/event_list_screen.dart';
@@ -136,15 +137,132 @@ class UserHomeScreen extends StatefulWidget {
 }
 
 class _UserHomeScreenState extends State<UserHomeScreen> {
+  final _firestoreService = FirestoreService();
   int _currentIndex = 0;
   Event? _selectedEvent;
+  bool _isReserving = false;
+  bool _isReserved = false;
+  String? _currentReservationId;
 
-  void _showEventDetail(Event event) {
-    setState(() => _selectedEvent = event);
+  void _showEventDetail(Event event) async {
+    setState(() {
+      _selectedEvent = event;
+      _isReserved = false;
+      _currentReservationId = null;
+    });
+    
+    // 予約済みかチェック
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final reservation = await _firestoreService.getUserReservationForEvent(
+        userId: user.uid,
+        eventId: event.eventId,
+      );
+      if (mounted) {
+        setState(() {
+          _isReserved = reservation != null;
+          _currentReservationId = reservation?.reservationId;
+        });
+      }
+    }
   }
 
   void _hideEventDetail() {
-    setState(() => _selectedEvent = null);
+    setState(() {
+      _selectedEvent = null;
+      _isReserved = false;
+      _currentReservationId = null;
+    });
+  }
+
+  /// 予約処理を実行
+  Future<void> _handleReservation() async {
+    if (_selectedEvent == null || _isReserving) return;
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showError('ログインが必要です');
+      return;
+    }
+
+    setState(() => _isReserving = true);
+
+    try {
+      // 予約を作成
+      await _firestoreService.createReservation(
+        eventId: _selectedEvent!.eventId,
+        userId: user.uid,
+      );
+
+      setState(() => _isReserved = true);
+      
+      // 成功モーダルを表示
+      _showReservationSuccess();
+    } catch (e) {
+      _showError(e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      setState(() => _isReserving = false);
+    }
+  }
+
+  /// 予約キャンセル処理
+  Future<void> _handleCancelReservation() async {
+    if (_currentReservationId == null || _isReserving) return;
+
+    // 確認ダイアログ
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('予約をキャンセル'),
+        content: Text('「${_selectedEvent?.title}」の予約をキャンセルしますか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('いいえ'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('キャンセルする'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isReserving = true);
+
+    try {
+      await _firestoreService.cancelReservation(_currentReservationId!);
+      
+      setState(() {
+        _isReserved = false;
+        _currentReservationId = null;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('予約をキャンセルしました'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      _showError(e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      setState(() => _isReserving = false);
+    }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+      ),
+    );
   }
 
   void _showReservationSuccess() {
@@ -194,7 +312,6 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  _hideEventDetail();
                 },
                 child: const Text('OK'),
               ),
@@ -212,7 +329,10 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
       return EventDetailScreen(
         event: _selectedEvent!,
         onBack: _hideEventDetail,
-        onReserve: _showReservationSuccess,
+        onReserve: _handleReservation,
+        onCancelReservation: _handleCancelReservation,
+        isReserved: _isReserved,
+        isLoading: _isReserving,
       );
     }
 
